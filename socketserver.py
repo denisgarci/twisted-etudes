@@ -12,7 +12,8 @@ class ChatServer(object):
         self.clients = [] # clients are Person objects (except for listener)
         self.rooms = set()
         # self.peer2room = dict()
-        self.msgqueues = dict()
+        self.wqueue = dict() # values:
+        self.rqueue = dict() # values: string not ending with new line except for [-1]
 
     @property
     def readers(self):
@@ -20,7 +21,7 @@ class ChatServer(object):
 
     @property
     def writers(self):
-        return [client for client in self.msgqueues if self.msgqueues[client]]
+        return [client for client in self.wqueue if self.wqueue[client]]
 
     def start(self):
         while True:
@@ -34,37 +35,39 @@ class ChatServer(object):
                 # Listener received connection request
                 self.handle_listener()
             else:
-                msg = self.get_msg(rclient)
-                self.handle_msg(rclient, msg)
+                self.get_msg(rclient)
 
         for wclient in wlist:
-            next_msg = self.msgqueues[wclient].pop(0)
+            for msg_list in self.rqueue:
+                if msg_list:
+                    msg = msg_list.pop(0)
+                    self.handle_msg(rclient, msg)
+
+            next_msg = self.wqueue[wclient].pop(0)
             amt_sent = wclient.sock.send(next_msg)
-            self.msgqueues[wclient].insert(0, next_msg[amt_sent:])
+            self.wqueue[wclient].insert(0, next_msg[amt_sent:])
 
     def get_msg(self, client):
         # handles parsing messages
-        cache = []
+        msg = client.sock.recv(10).decode()
+        if not msg:
+            self.clients.remove(client)
+        else:
+            print("received", msg)
+            self.handle_msg(client, msg)
+            #if msg.endswith("\n"):
+                #self.handle_msg(msg)
+            #else:
+                #msg = msg
+                #self.rqueue[client] =
+            #self.handle()
 
-        while True:
-            msg = client.sock.recv(10).decode()
-            print("Received", msg)
-            if not msg:
-                self.clients.remove(client)
-                break
-            else:
-                cache.append(msg)
-                # print("".join(cache))
-                if msg.endswith("\n"):
-                    break
-
-        return "".join(cache)
 
     def handle_listener(self):
         sock, addr = self.listener.accept()
         client = Client(sock, addr)
         self.clients.append(client)
-        self.msgqueues[client] = []
+        self.wqueue[client] = []
         print("{} has connected.".format(client.name))
         # Insert welcome message.
 
@@ -74,9 +77,15 @@ class ChatServer(object):
 
 
     def send_msg_to_room(self, sender, msg):
-        for client in sender.room:
+        #this if else if only for testing purposes
+        if sender.room:
+            clients = sender.room.clients
+        else:
+            clients = self.clients
+
+        for client in clients:
             if client is not sender:
-                self.msgqueues[client].append(msg.encode())
+                self.wqueue[client].append(msg.encode())
 
 
     def remove(self, client):
