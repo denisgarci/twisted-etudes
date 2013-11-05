@@ -1,6 +1,9 @@
 """
 Chat server with only select.
 """
+from __future__ import print_function
+from __future__ import unicode_literals
+
 
 import select, socket
 
@@ -53,18 +56,17 @@ class ChatServer(object):
 
 
     def recv_msg(self, client):
-        # SHOULD WE DECODE HERE? msg.decode()? no if we don't have the whole bytes of a utf8 char
-        msg = client.sock.recv(10)
+        msg = client.sock.recv(4096)
         if not msg:
             self.clients.remove(client)
         else:
-            print('Server received {0} from {1}'.format(msg, client.name))
+            print(u'Server received {0} from {1}'.format(msg, client.name))
             # Check if we actually received an entire message. An entire message is just a message finishing with an
-            msg = ''.join((client.rqueue, msg))
-            if msg.endswith("\n"):
+            msg = b''.join((client.rqueue, msg))
+            if msg.endswith(b'\n'):
                 self.handle_msg(client, msg)
             else:
-                self.client.rqueue = msg
+                client.rqueue = msg
 
     def handle_msg(self, sender, msg):
         for client in self.clients:
@@ -75,24 +77,15 @@ class ChatServer(object):
         sock, addr = self.listener.accept()
         client = Client(sock, addr)
         self.clients.add(client)
-        print('{} has connected.'.format(client.name))
-        client.wqueue.append('Welcome {0}. This is your address {1}.'.format(client.name, addr))
-
-
-
-
-    #def send_msg_to_room(self, sender, msg):
-        ##this if else if only for testing purposes
-        #if sender.room:
-            #clients = sender.room.clients
-        #else:
-            #clients = self.clients
-
+        welcome_msg = u'Welcome {0}. This is your address {1}.\n'.format(client.name, addr)
+        client.wqueue.append(welcome_msg.encode())
+        print(u'{} has connected.'.format(client.name))
 
 
     def remove(self, client):
         client.sock.close()
         self.clients.remove(client)
+        print(u'{} has disconnected.'.format(client.name))
 
 
 class Client(object):
@@ -105,10 +98,10 @@ class Client(object):
         self.sock = sock
         self.addr = addr
         if name == None:
-            name = 'client{}'.format(self.client_id)
+            name = u'client{}'.format(self.client_id)
         self.name = name
 
-        self.rqueue = ''
+        self.rqueue = b''
         self.wqueue = []
 
     def fileno(self):
@@ -122,7 +115,7 @@ def main():
     """
     addr = ('127.0.0.1', 8000)
 
-    print("Listening at", addr)
+    print('Listening at', addr)
     server = ChatServer(addr)
     server.start()
 
