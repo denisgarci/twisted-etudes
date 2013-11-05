@@ -2,18 +2,25 @@
 Chat server with only select.
 """
 
-import select, socket, sys
+import select, socket
 
 class ChatServer(object):
-    def __init__(self, listener, name = "server"):
-        # should create the listener socket with an adress argument or port
-        self.listener = listener # listening socket
+    def __init__(self, addr, name = "server"):
+        self.listener = self.create_listener(addr) # listening socket
         self.name = name
         self.clients = [] # clients are Person objects (except for listener)
         self.rooms = set()
-        # self.peer2room = dict()
+
         self.wqueue = dict() # values:
         self.rqueue = dict() # values: string not ending with new line except for [-1]
+
+    def create_listener(self, addr):
+        listener = socket.socket()
+        listener.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        listener.setblocking(0)
+        listener.bind(addr)
+        listener.listen(5)
+        return listener
 
     @property
     def readers(self):
@@ -48,19 +55,23 @@ class ChatServer(object):
             self.wqueue[wclient].insert(0, next_msg[amt_sent:])
 
     def get_msg(self, client):
+         # SHOULD WE DECODE HERE? msg.decode()?
         # handles parsing messages
         msg = client.sock.recv(10).decode()
         if not msg:
             self.clients.remove(client)
         else:
             print("received", msg)
-            self.handle_msg(client, msg)
+            msg = "".join((self.rqueue[client], msg))
             #if msg.endswith("\n"):
-                #self.handle_msg(msg)
+                #msg_to_send = msg
             #else:
-                #msg = msg
-                #self.rqueue[client] =
-            #self.handle()
+                #try:
+                    #msg_to_send = msg[:msg.rindex("\n")+1]
+                #except ValueError:
+                    #self.rqueu[client] = msg
+                    #msg_to_send = None
+            self.handle_msg(client, msg)
 
 
     def handle_listener(self):
@@ -73,19 +84,20 @@ class ChatServer(object):
 
     def handle_msg(self, sender, msg): # sender = socket
         print("Client says:", msg)
-        self.send_msg_to_room(sender, msg)
-
-
-    def send_msg_to_room(self, sender, msg):
-        #this if else if only for testing purposes
-        if sender.room:
-            clients = sender.room.clients
-        else:
-            clients = self.clients
-
-        for client in clients:
+        #self.send_msg_to_room(sender, msg)
+        for client in self.clients:
             if client is not sender:
                 self.wqueue[client].append(msg.encode())
+
+
+    #def send_msg_to_room(self, sender, msg):
+        ##this if else if only for testing purposes
+        #if sender.room:
+            #clients = sender.room.clients
+        #else:
+            #clients = self.clients
+
+
 
 
     def remove(self, client):
@@ -126,16 +138,7 @@ class Client(object):
     def fileno(self):
         return self.sock.fileno()
 
-def get_listener(addr):
-    """ (str, int) -> socket
-    Creates listening socket and returns it
-    """
-    listener = socket.socket()
-    listener.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-    listener.setblocking(0)
-    listener.bind(addr)
-    listener.listen(5)
-    return listener
+
 
 def main():
     """
@@ -144,8 +147,7 @@ def main():
     addr = ('127.0.0.1', 8000)
 
     print("Listening at", addr)
-    listener = get_listener(addr)
-    server = ChatServer(listener)
+    server = ChatServer(addr)
     server.start()
 
 if __name__ == '__main__':
