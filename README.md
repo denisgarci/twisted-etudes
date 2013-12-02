@@ -1,5 +1,5 @@
-twisted-etudes
-==============
+A simple chat server
+====================
 
 This project has nothing to do with Twisted.
 It's a simple Python chat server.
